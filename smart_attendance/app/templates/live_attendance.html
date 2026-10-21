@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Live Attendance - {{ course.code }} - AttendAI{% endblock %}
+{% block page_title %}Live Attendance - {{ course.code }}{% endblock %}
+
+{% set active_page = "dashboard" %}
+
+{% block content %}
+<!-- Top Controls & Actions (Screen 9) -->
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
+  <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+    <div>
+      <label class="form-label" style="font-size:0.75rem;">Course</label>
+      <input type="text" class="form-control" value="{{ course.code }} - {{ course.title }}" readonly style="width:280px; font-weight:600;">
+    </div>
+    <div>
+      <label class="form-label" style="font-size:0.75rem;">Date</label>
+      <input type="text" class="form-control" value="{{ session.start_time.strftime('%Y-%m-%d') }}" readonly style="width:140px;">
+    </div>
+  </div>
+
+  <div style="display:flex; gap:12px; align-items:flex-end;">
+    <a href="/lecturer/sessions/{{ session.id }}/export" class="btn btn-outline" style="border-color:#4f46e5; color:#4f46e5;">
+      📥 Export CSV
+    </a>
+    <form method="POST" action="/lecturer/sessions/{{ session.id }}/close">
+      <button type="submit" class="btn btn-outline" style="color:#ef4444; border-color:#fca5a5;">
+        Close Session
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Classroom Projector Rotating Code Banner -->
+<div class="card" style="background: linear-gradient(135deg, #1e1b4b, #312e81); color:#ffffff; text-align:center; padding:28px; margin-bottom:28px;">
+  <div style="font-size:0.9rem; text-transform:uppercase; letter-spacing:1px; color:#c7d2fe; margin-bottom:4px;">
+    Classroom Display Rotating Code
+  </div>
+  <div id="live-code-digits" style="font-size:4rem; font-weight:800; letter-spacing:16px; font-family:monospace; color:#ffffff;">
+    {{ current_code }}
+  </div>
+  <div id="live-code-timer" style="font-size:0.9rem; color:#a5b4fc; margin-top:8px;">
+    Expires in {{ seconds_remaining }}s &bull; (Changes every 30 seconds)
+  </div>
+</div>
+
+<!-- Live Attendees Table (Screen 9) -->
+<div class="card">
+  <div class="card-header">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <h2 class="card-title">Live Attendance Records</h2>
+      <span class="badge badge-present" style="font-size:0.75rem;">● Auto-refreshing (5s)</span>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Student Name</th>
+          <th>Matric No.</th>
+          <th>Date & Time</th>
+          <th>Status</th>
+          <th>Score</th>
+          <th>Flag</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="live-attendance-tbody">
+        {% if records %}
+        {% for r in records %}
+        <tr>
+          <td><strong>{{ r.student.full_name }}</strong></td>
+          <td>{{ r.student.matric_no }}</td>
+          <td>{{ r.timestamp.strftime("%Y-%m-%d %I:%M %p") }}</td>
+          <td>
+            <span class="badge {% if r.status == 'Present' %}badge-present{% elif r.status == 'Pending Review' %}badge-pending{% else %}badge-rejected{% endif %}">
+              {{ r.status }}
+            </span>
+          </td>
+          <td><strong>{{ r.verification_score }}%</strong></td>
+          <td>
+            {% if r.flagged %}
+            <span style="color:#ef4444; font-weight:bold; font-size:1.1rem; cursor:pointer;"
+                  onclick="openReviewModalFromRow({{ r.id }}, '{{ r.student.full_name }}', '{{ r.student.matric_no }}', '{{ course.code }}', '{{ r.timestamp.strftime('%Y-%m-%d %I:%M %p') }}', '{{ r.status }}', '{{ r.flag_reason or '' }}', {{ r.verification_score }}, {{ r.distance_meters }})"
+                  title="{{ r.flag_reason }}">⚠️</span>
+            {% else %}
+            <span style="color:#10b981;">✓</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.flagged or r.status == 'Pending Review' %}
+            <button class="btn btn-sm btn-success" onclick="reviewRecord({{ r.id }}, 'Present')">Approve</button>
+            <button class="btn btn-sm btn-danger" onclick="reviewRecord({{ r.id }}, 'Rejected')">Reject</button>
+            {% else %}
+            <span style="color:#94a3b8; font-size:0.8rem;">Completed</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center; padding:32px; color:#64748b;">
+            Waiting for students to check in... Records will appear here in real time.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "components/flagged_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let activeSessionId = {{ session.id }};
+  let activeReviewRecordId = null;
+
+  // Initialize auto-polling and rotating code countdown
+  initLecturerLiveFeed(activeSessionId);
+
+  window.addEventListener("attendanceUpdated", () => {
+    // Force refresh table
+    initLecturerLiveFeed(activeSessionId);
+  });
+
+  function openReviewModalFromRow(id, name, matric, course, dt, status, reason, score, dist) {
+    activeReviewRecordId = id;
+    document.getElementById("modal-student-name").textContent = name;
+    document.getElementById("modal-matric-no").textContent = matric;
+    document.getElementById("modal-course").textContent = course;
+    document.getElementById("modal-datetime").textContent = dt;
+    document.getElementById("modal-status").textContent = status;
+    document.getElementById("modal-reason").textContent = reason || "Flagged for manual review";
+    document.getElementById("modal-score").textContent = `${score}%`;
+    document.getElementById("modal-distance").textContent = `${dist} meters`;
+    document.getElementById("review-modal").classList.add("show");
+  }
+
+  function closeReviewModal() {
+    document.getElementById("review-modal").classList.remove("show");
+    activeReviewRecordId = null;
+  }
+
+  async function submitModalDecision(decisionStatus) {
+    if (!activeReviewRecordId) return;
+    await reviewRecord(activeReviewRecordId, decisionStatus);
+    closeReviewModal();
+  }
+</script>
+{% endblock %}

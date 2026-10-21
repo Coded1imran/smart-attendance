@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard - AttendAI{% endblock %}
+{% block page_title %}Student Dashboard{% endblock %}
+
+{% set active_page = "dashboard" %}
+
+{% block content %}
+<!-- Stats Row (Screen 5) -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon indigo">📚</div>
+    <div>
+      <div class="stat-label">Enrolled Courses</div>
+      <div class="stat-value">{{ total_enrolled }}</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon green">📈</div>
+    <div>
+      <div class="stat-label">Overall Attendance</div>
+      <div class="stat-value">{{ overall_percentage }}%</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon purple">🗓️</div>
+    <div>
+      <div class="stat-label">Total Sessions</div>
+      <div class="stat-value">{{ total_sessions }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- My Courses Section (Screen 5) -->
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">My Courses</h2>
+    <a href="/student/courses" class="btn btn-outline btn-sm">View All Courses</a>
+  </div>
+
+  {% if my_courses %}
+  <div class="course-grid">
+    {% for c in my_courses %}
+    <div class="course-card">
+      <div>
+        <div class="course-code">{{ c.code }}</div>
+        <div class="course-name">{{ c.title }}</div>
+      </div>
+      <div>
+        <div class="course-meta">
+          <span>Attendance: <strong>{{ c.attendance_pct }}%</strong></span>
+          {% if c.active_session_id %}
+          <span class="badge badge-present" style="animation: pulse 1.5s infinite;">● Session Active</span>
+          {% else %}
+          <span style="font-size:0.75rem; color:#94a3b8;">No active session</span>
+          {% endif %}
+        </div>
+
+        {% if c.active_session_id %}
+        <a href="/student/mark-attendance?session_id={{ c.active_session_id }}" class="btn btn-primary btn-sm btn-block">
+          📍 Mark Attendance
+        </a>
+        {% else %}
+        <a href="/student/history?course_id={{ c.id }}" class="btn btn-outline btn-sm btn-block">
+          View Attendance
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center; padding:32px; color:#64748b;">
+    <p style="margin-bottom:12px;">You are not enrolled in any courses yet.</p>
+    <a href="/student/courses" class="btn btn-primary btn-sm">Browse Available Courses</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Recent Attendance Table (Screen 5) -->
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Recent Attendance</h2>
+    <a href="/student/history" style="font-size:0.85rem; color:#4f46e5; text-decoration:none; font-weight:600;">View All</a>
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Course</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Status</th>
+          <th>Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if recent_records %}
+        {% for r in recent_records %}
+        <tr>
+          <td><strong>{{ r.session.course.code }}</strong> - {{ r.session.course.title }}</td>
+          <td>{{ r.timestamp.strftime("%Y-%m-%d") }}</td>
+          <td>{{ r.timestamp.strftime("%I:%M %p") }}</td>
+          <td>
+            <span class="badge {% if r.status == 'Present' %}badge-present{% elif r.status == 'Pending Review' %}badge-pending{% else %}badge-rejected{% endif %}">
+              {{ r.status }}
+            </span>
+          </td>
+          <td>{{ r.verification_score }}%</td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+          <td colspan="5" style="text-align:center; padding:24px; color:#94a3b8;">
+            No attendance records yet. Once a lecturer opens a session, you can mark your attendance.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

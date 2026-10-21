@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}Mark Attendance - AttendAI{% endblock %}
+{% block page_title %}Mark Attendance{% endblock %}
+
+{% set active_page = "mark" %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+  {% if session %}
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+    <div>
+      <h2 style="font-size:1.25rem; font-weight:700; color:#0f172a;">{{ session.course.code }} - {{ session.course.title }}</h2>
+      <p style="font-size:0.85rem; color:#64748b;">Instructor: {{ session.course.lecturer.full_name }}</p>
+    </div>
+    <span class="badge badge-present">● Session Open</span>
+  </div>
+
+  {% if already_marked %}
+  <div style="text-align:center; padding:48px 24px;">
+    <div style="font-size:3rem; margin-bottom:12px;">✅</div>
+    <h3 style="font-size:1.3rem; font-weight:700; margin-bottom:8px;">Attendance Already Marked</h3>
+    <p style="color:#64748b; margin-bottom:20px;">
+      You have already checked into this session.<br>
+      Status: <strong>{{ existing_record.status }}</strong> &bull; Verification Score: <strong>{{ existing_record.verification_score }}%</strong>
+    </p>
+    <a href="/student/dashboard" class="btn btn-primary">Return to Dashboard</a>
+  </div>
+  {% else %}
+
+  <!-- 5-Step Progress Wizard (Screen 6) -->
+  <div class="step-wizard">
+    <div class="step-item active" id="wizard-step-1">
+      <div class="step-circle">1</div>
+      <div class="step-title">Code</div>
+    </div>
+    <div class="step-item" id="wizard-step-2">
+      <div class="step-circle">2</div>
+      <div class="step-title">Location</div>
+    </div>
+    <div class="step-item" id="wizard-step-3">
+      <div class="step-circle">3</div>
+      <div class="step-title">Liveness</div>
+    </div>
+    <div class="step-item" id="wizard-step-4">
+      <div class="step-circle">4</div>
+      <div class="step-title">Face Match</div>
+    </div>
+    <div class="step-item" id="wizard-step-5">
+      <div class="step-circle">5</div>
+      <div class="step-title">Complete</div>
+    </div>
+  </div>
+
+  <!-- Wizard Content Containers -->
+
+  <!-- STEP 1: Code Entry -->
+  <div id="step-container-1">
+    <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:12px;">Step 1: Enter Classroom Rotating Code</h3>
+    <p style="font-size:0.85rem; color:#64748b; margin-bottom:20px;">
+      Enter the 6-digit dynamic code currently shown on the classroom screen.
+    </p>
+    
+    <div style="max-width:320px; margin:0 auto 24px auto;">
+      <input type="text" id="rotating-code-input" class="form-control" placeholder="e.g. 482039" maxlength="6"
+             style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:700;">
+    </div>
+
+    <div style="text-align:center;">
+      <button type="button" class="btn btn-primary" onclick="proceedToLocationStep()" style="min-width:180px;">
+        Verify Code &rarr;
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Location Verification -->
+  <div id="step-container-2" style="display:none; text-align:center;">
+    <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:12px;">Step 2: Classroom GPS Geolocation</h3>
+    <p style="font-size:0.85rem; color:#64748b; margin-bottom:20px;">
+      Checking your physical distance to classroom (Radius: <strong>{{ session.radius_meters }}m</strong>)...
+    </p>
+
+    <div id="location-spinner" style="padding:24px;">
+      <div style="font-size:2rem; animation: spin 1s infinite linear;">📍</div>
+      <p id="location-status-text" style="color:#64748b; font-size:0.9rem; margin-top:8px;">Acquiring GPS coordinates...</p>
+    </div>
+
+    <button type="button" id="retry-location-btn" class="btn btn-outline btn-sm" onclick="fetchLocation()" style="display:none; margin:0 auto;">
+      Retry GPS Check
+    </button>
+  </div>
+
+  <!-- STEP 3 & 4: Live Liveness & Face Verification -->
+  <div id="step-container-3" style="display:none; text-align:center;">
+    <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:8px;">Step 3 & 4: Liveness Challenge & Face Match</h3>
+    <div id="liveness-prompt-box" style="background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:12px; margin-bottom:16px; font-weight:600; color:#4338ca;">
+      👁️ Please align your face inside the circle and prepare to blink naturally.
+    </div>
+
+    <div class="webcam-container">
+      <video id="attendance-webcam" class="webcam-video" autoplay playsinline muted></video>
+      <img id="attendance-manual-preview" style="display:none; width:100%; height:100%; object-fit:cover;" alt="Selfie Preview">
+      <div id="face-guide" class="face-guide-overlay"></div>
+    </div>
+
+    <div style="display:flex; justify-content:center; gap:10px; margin-top:12px; flex-wrap:wrap;">
+      <label class="btn btn-outline btn-sm" style="cursor:pointer; margin-bottom:0;">
+        📁 Upload Selfie
+        <input type="file" id="attendance-file-input" accept="image/*" style="display:none;" onchange="handleAttendanceFileUpload(event)">
+      </label>
+      <button type="button" class="btn btn-outline btn-sm" onclick="useAttendanceSampleFace()" style="color:#4f46e5; border-color:#c7d2fe;">
+        🧪 Use Demo Face
+      </button>
+    </div>
+
+    <p id="verification-progress-text" style="margin-top:16px; font-size:0.9rem; color:#64748b; font-weight:600;">
+      Please look at the camera and wait for verification...
+    </p>
+
+    <div style="margin-top:20px;">
+      <button type="button" id="start-verify-btn" class="btn btn-primary" onclick="executeFullVerification()">
+        📸 Start Verification
+      </button>
+      <button type="button" class="btn btn-outline" onclick="cancelWizard()" style="margin-left:10px;">
+        Cancel
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 5: Completion Feedback -->
+  <div id="step-container-5" style="display:none; text-align:center; padding:32px 16px;">
+    <div id="result-icon" style="font-size:3.5rem; margin-bottom:16px;">🎉</div>
+    <h3 id="result-title" style="font-size:1.35rem; font-weight:800; margin-bottom:8px;">Attendance Recorded!</h3>
+    <p id="result-message" style="color:#64748b; margin-bottom:24px; font-size:0.95rem;"></p>
+
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:20px; max-width:400px; margin:0 auto 24px auto; text-align:left; font-size:0.9rem;">
+      <div style="margin-bottom:8px;"><strong>Status:</strong> <span id="summary-status" class="badge"></span></div>
+      <div style="margin-bottom:8px;"><strong>Face Match Score:</strong> <span id="summary-score"></span></div>
+      <div style="margin-bottom:8px;"><strong>Distance:</strong> <span id="summary-distance"></span></div>
+      <div id="summary-flag-row" style="display:none; color:#ef4444; font-size:0.85rem; margin-top:8px;">
+        <strong>Note:</strong> <span id="summary-flag-reason"></span>
+      </div>
+    </div>
+
+    <a href="/student/dashboard" class="btn btn-primary">Return to Dashboard</a>
+  </div>
+
+  {% endif %}
+
+  {% else %}
+  <div style="text-align:center; padding:48px 24px; color:#64748b;">
+    <div style="font-size:3rem; margin-bottom:12px;">🕒</div>
+    <h3 style="font-size:1.25rem; font-weight:700; color:#0f172a; margin-bottom:8px;">No Open Attendance Session</h3>
+    <p style="margin-bottom:20px;">There are no active attendance sessions currently open for your enrolled courses.</p>
+    <a href="/student/dashboard" class="btn btn-outline">Back to Dashboard</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/webcam.js?v=3"></script>
+<script src="/static/js/geo.js?v=3"></script>
+<script src="/static/js/liveness.js?v=3"></script>
+
+<script>
+  let sessionId = {{ session.id if session else 'null' }};
+  let classroomLat = {{ session.latitude if session else 0.0 }};
+  let classroomLng = {{ session.longitude if session else 0.0 }};
+  let classroomRadius = {{ session.radius_meters if session else 50.0 }};
+
+  let studentLat = null;
+  let studentLng = null;
+  let webcamMgr = null;
+  let livenessCtrl = null;
+  let manualAttendanceSelfie = null;
+
+  async function handleAttendanceFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      if (webcamMgr) webcamMgr.stopCamera();
+      manualAttendanceSelfie = await WebcamManager.readFileAsDataURL(file);
+      const prev = document.getElementById("attendance-manual-preview");
+      prev.src = manualAttendanceSelfie;
+      prev.style.display = "block";
+      document.getElementById("attendance-webcam").style.display = "none";
+      document.getElementById("verification-progress-text").textContent = "Photo uploaded! Click 'Start Verification' below.";
+      showNotification("Selfie photo loaded successfully!", "success");
+    } catch (e) {
+      showNotification("Failed to read image file.", "error");
+    }
+  }
+
+  function useAttendanceSampleFace() {
+    if (webcamMgr) webcamMgr.stopCamera();
+    const canvas = document.createElement("canvas");
+    canvas.width = 300;
+    canvas.height = 300;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#e2e8f0";
+    ctx.fillRect(0, 0, 300, 300);
+    ctx.fillStyle = "#fbcfe8";
+    ctx.beginPath();
+    ctx.ellipse(150, 150, 80, 110, 0, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = "#1e293b";
+    ctx.beginPath();
+    ctx.arc(120, 130, 10, 0, 2 * Math.PI);
+    ctx.arc(180, 130, 10, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.strokeStyle = "#db2777";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(150, 175, 35, 0.1 * Math.PI, 0.9 * Math.PI);
+    ctx.stroke();
+
+    manualAttendanceSelfie = canvas.toDataURL("image/jpeg", 0.9);
+    const prev = document.getElementById("attendance-manual-preview");
+    prev.src = manualAttendanceSelfie;
+    prev.style.display = "block";
+    document.getElementById("attendance-webcam").style.display = "none";
+    document.getElementById("verification-progress-text").textContent = "Demo face loaded! Click 'Start Verification' below.";
+    showNotification("Demo face loaded!", "success");
+  }
+
+  function setWizardStep(stepNum) {
+    for (let i = 1; i <= 5; i++) {
+      const stepItem = document.getElementById(`wizard-step-${i}`);
+      const stepCont = document.getElementById(`step-container-${i}`);
+      if (stepItem) {
+        stepItem.classList.toggle("active", i === stepNum);
+        if (i < stepNum) stepItem.classList.add("completed");
+      }
+      if (stepCont) {
+        stepCont.style.display = (i === stepNum || (stepNum === 4 && i === 3)) ? "block" : "none";
+      }
+    }
+  }
+
+  function proceedToLocationStep() {
+    const code = document.getElementById("rotating-code-input").value.trim();
+    if (code.length !== 6) {
+      showNotification("Please enter a valid 6-digit code.", "error");
+      return;
+    }
+    setWizardStep(2);
+    fetchLocation();
+  }
+
+  async function fetchLocation() {
+    const statusText = document.getElementById("location-status-text");
+    const retryBtn = document.getElementById("retry-location-btn");
+    retryBtn.style.display = "none";
+
+    try {
+      statusText.textContent = "Obtaining GPS satellite coordinates...";
+      const coords = await GeoManager.getCurrentCoordinates();
+      studentLat = coords.latitude;
+      studentLng = coords.longitude;
+
+      const dist = GeoManager.calculateDistanceMeters(studentLat, studentLng, classroomLat, classroomLng);
+      statusText.innerHTML = `GPS acquired! Distance to classroom: <strong>${dist}m</strong> (Allowed: ${classroomRadius}m)`;
+      statusText.style.color = "#10b981";
+
+      setTimeout(() => {
+        proceedToLivenessStep();
+      }, 1200);
+    } catch (err) {
+      statusText.textContent = err.message;
+      statusText.style.color = "#ef4444";
+      retryBtn.style.display = "block";
+      showNotification(err.message, "error");
+    }
+  }
+
+  async function proceedToLivenessStep() {
+    setWizardStep(3);
+    livenessCtrl = new LivenessChallenge({
+      promptEl: document.getElementById("liveness-prompt-box"),
+      statusEl: document.getElementById("verification-progress-text")
+    });
+    livenessCtrl.generateChallenge();
+
+    try {
+      webcamMgr = new WebcamManager("attendance-webcam");
+      await webcamMgr.startCamera();
+    } catch (err) {
+      console.warn("Camera auto-stream:", err);
+    }
+  }
+
+  async function executeFullVerification() {
+    const btn = document.getElementById("start-verify-btn");
+    btn.disabled = true;
+
+    // 1. Run live liveness challenge
+    const livenessPassed = livenessCtrl ? await livenessCtrl.runChallenge() : true;
+
+    // 2. Capture live webcam snapshot or use manual upload / demo face
+    document.getElementById("verification-progress-text").textContent = "Matching face biometric embedding...";
+    setWizardStep(4);
+
+    let selfieBase64 = manualAttendanceSelfie;
+    if (!selfieBase64 && webcamMgr) {
+      selfieBase64 = webcamMgr.captureSnapshot();
+    }
+
+    if (!selfieBase64) {
+      showNotification("Please enable camera, upload a photo, or click 'Use Demo Face'.", "error");
+      document.getElementById("verification-progress-text").textContent = "Photo needed for face verification.";
+      btn.disabled = false;
+      return;
+    }
+
+    // 3. Send verification payload to backend
+    try {
+      const code = document.getElementById("rotating-code-input").value.trim();
+      const res = await fetch("/student/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          rotating_code: code,
+          latitude: studentLat || classroomLat,
+          longitude: studentLng || classroomLng,
+          face_image_base64: selfieBase64,
+          liveness_passed: livenessPassed,
+          challenge_type: (livenessCtrl && livenessCtrl.currentChallenge) || "blink"
+        })
+      });
+
+      const data = await res.json();
+      if (webcamMgr) webcamMgr.stopCamera();
+
+      if (res.ok) {
+        showResults(data);
+      } else {
+        showFailure(data.detail || "Attendance verification failed.");
+      }
+    } catch (err) {
+      showNotification("Network verification failed.", "error");
+      btn.disabled = false;
+    }
+  }
+
+  function showResults(data) {
+    setWizardStep(5);
+    const isPresent = data.attendance_status === "Present";
+    document.getElementById("result-icon").textContent = isPresent ? "🎉" : "⏳";
+    document.getElementById("result-title").textContent = isPresent ? "Attendance Marked Successfully!" : "Attendance Submitted for Review";
+    document.getElementById("result-message").textContent = data.message;
+
+    const badge = document.getElementById("summary-status");
+    badge.textContent = data.attendance_status;
+    badge.className = `badge ${isPresent ? 'badge-present' : 'badge-pending'}`;
+
+    document.getElementById("summary-score").textContent = `${data.verification_score}%`;
+    document.getElementById("summary-distance").textContent = `${data.distance_meters}m`;
+
+    if (data.flagged && data.flag_reason) {
+      document.getElementById("summary-flag-row").style.display = "block";
+      document.getElementById("summary-flag-reason").textContent = data.flag_reason;
+    }
+  }
+
+  function showFailure(detailMsg) {
+    setWizardStep(5);
+    document.getElementById("result-icon").textContent = "❌";
+    document.getElementById("result-title").textContent = "Verification Rejected";
+    document.getElementById("result-message").textContent = detailMsg;
+
+    const badge = document.getElementById("summary-status");
+    badge.textContent = "Rejected";
+    badge.className = "badge badge-rejected";
+
+    document.getElementById("summary-score").textContent = "Mismatched";
+    document.getElementById("summary-distance").textContent = "Verified";
+  }
+
+  function cancelWizard() {
+    if (webcamMgr) webcamMgr.stopCamera();
+    window.location.href = "/student/dashboard";
+  }
+</script>
+{% endblock %}

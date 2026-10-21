@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lecturer Registration - AttendAI</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <style>
+    .auth-page {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #f8fafc;
+      padding: 32px 16px;
+    }
+    .auth-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 36px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      text-align: center;
+    }
+  </style>
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <a href="/" style="display:inline-flex; align-items:center; gap:8px; text-decoration:none; margin-bottom:16px;">
+      <div class="brand-icon">A</div>
+      <span style="font-weight:800; font-size:1.3rem; color:#0f172a;">AttendAI</span>
+    </a>
+
+    <h2 style="font-size:1.45rem; font-weight:800; color:#0f172a; margin-bottom:4px;">Lecturer Registration</h2>
+    <p style="font-size:0.85rem; color:#64748b; margin-bottom:24px;">Create your account to manage courses</p>
+
+    <form id="lecturer-reg-form">
+      <div class="form-group" style="text-align:left;">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="full_name" class="form-control" placeholder="e.g. Dr. Bello Usman" required>
+      </div>
+
+      <div class="form-group" style="text-align:left;">
+        <label class="form-label">Email Address</label>
+        <input type="email" id="email" class="form-control" placeholder="lecturer@university.edu" required>
+      </div>
+
+      <div class="form-group" style="text-align:left;">
+        <label class="form-label">Staff ID</label>
+        <input type="text" id="staff_id" class="form-control" placeholder="e.g. STF-2024-88" required>
+      </div>
+
+      <div class="form-group" style="text-align:left;">
+        <label class="form-label">Password</label>
+        <input type="password" id="password" class="form-control" placeholder="Create a strong password" required minlength="6">
+      </div>
+
+      <div class="form-group" style="text-align:left; display:flex; align-items:flex-start; gap:10px; margin-top:16px;">
+        <input type="checkbox" id="consent" required style="margin-top:3px; accent-color:#4f46e5; width:16px; height:16px;">
+        <label for="consent" style="font-size:0.82rem; color:#475569; line-height:1.4;">
+          I consent to administrative role policies and attendance session location logging.
+        </label>
+      </div>
+
+      <button type="submit" id="submit-btn" class="btn btn-primary btn-block" style="padding:12px; margin-top:8px;">
+        Register as Lecturer
+      </button>
+
+      <div style="margin-top:20px; font-size:0.85rem; color:#64748b;">
+        Already have an account? <a href="/login" style="color:#4f46e5; font-weight:600; text-decoration:none;">Login</a>
+      </div>
+    </form>
+  </div>
+
+  <script src="/static/js/attendance.js"></script>
+  <script>
+    document.getElementById("lecturer-reg-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Creating account...";
+
+      try {
+        const res = await fetch("/auth/register/lecturer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            full_name: document.getElementById("full_name").value.trim(),
+            email: document.getElementById("email").value.trim(),
+            staff_id: document.getElementById("staff_id").value.trim(),
+            password: document.getElementById("password").value,
+            consent_given: document.getElementById("consent").checked
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          showNotification(data.message, "success");
+          setTimeout(() => {
+            window.location.href = data.redirect_url;
+          }, 1000);
+        } else {
+          showNotification(data.detail || "Registration failed.", "error");
+          btn.disabled = false;
+          btn.textContent = "Register as Lecturer";
+        }
+      } catch (err) {
+        showNotification("Network error. Please try again.", "error");
+        btn.disabled = false;
+        btn.textContent = "Register as Lecturer";
+      }
+    });
+  </script>
+</body>
+</html>

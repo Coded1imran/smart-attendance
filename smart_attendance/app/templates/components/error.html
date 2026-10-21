@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Error {{ status_code }} - AttendAI{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:500px; margin:48px auto; text-align:center; padding:48px 24px;">
+  <div style="font-size:3.5rem; margin-bottom:16px;">🚫</div>
+  <h2 style="font-size:1.4rem; font-weight:800; color:#0f172a; margin-bottom:8px;">{{ title }}</h2>
+  <p style="color:#64748b; margin-bottom:24px; font-size:0.95rem;">{{ message }}</p>
+  <a href="/login" class="btn btn-primary">Return to Login / Home</a>
+</div>
+{% endblock %}
