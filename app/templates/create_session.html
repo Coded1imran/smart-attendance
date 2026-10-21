@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Start Attendance Session - AttendAI{% endblock %}
+{% block page_title %}Start Attendance Session{% endblock %}
+
+{% set active_page = "create_session" %}
+
+{% block content %}
+<div class="card" style="max-width: 640px; margin: 0 auto;">
+  <div class="card-header">
+    <h2 class="card-title">Session Configuration</h2>
+  </div>
+
+  {% if courses %}
+  <form id="start-session-form">
+    <!-- Course Selector -->
+    <div class="form-group">
+      <label class="form-label">Select Course</label>
+      <select id="course_id" class="form-control" required>
+        {% for c in courses %}
+        <option value="{{ c.id }}">{{ c.code }} - {{ c.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Duration -->
+    <div class="form-group">
+      <label class="form-label">Duration (minutes)</label>
+      <input type="number" id="duration_minutes" class="form-control" value="15" min="1" max="240" required>
+    </div>
+
+    <!-- Classroom GPS Location -->
+    <div class="form-group">
+      <label class="form-label">Classroom Location (GPS)</label>
+      <div style="display:flex; gap:12px; margin-bottom:8px;">
+        <input type="text" id="latitude" class="form-control" placeholder="Latitude" readonly required>
+        <input type="text" id="longitude" class="form-control" placeholder="Longitude" readonly required>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="acquireClassroomLocation()">
+          📍 Get Current Location
+        </button>
+        <span id="location-pill" style="font-size:0.8rem; color:#64748b;">Click button to fetch classroom GPS</span>
+      </div>
+    </div>
+
+    <!-- Radius -->
+    <div class="form-group">
+      <label class="form-label">Radius (meters)</label>
+      <input type="number" id="radius_meters" class="form-control" value="50" min="5" max="500" required>
+    </div>
+
+    <!-- Live Rotating Code Display Box (Screen 8) -->
+    <div class="rotating-code-box">
+      <div style="font-size:0.85rem; font-weight:600; color:#64748b; margin-bottom:4px;">Rotating Code</div>
+      <div class="rotating-code-digits" id="preview-code">482039</div>
+      <div class="rotating-code-timer">(Changes every 30 seconds)</div>
+    </div>
+
+    <button type="submit" id="start-btn" class="btn btn-primary btn-block" style="padding:14px; font-size:1rem;">
+      Start Session
+    </button>
+  </form>
+  {% else %}
+  <div style="text-align:center; padding:32px; color:#64748b;">
+    <p style="margin-bottom:16px;">You must create at least one course before starting an attendance session.</p>
+    <a href="/lecturer/dashboard" class="btn btn-primary">Go to Dashboard to Create Course</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/geo.js"></script>
+<script>
+  // Simulated rotating preview code
+  function rotatePreviewCode() {
+    const code = Math.floor(100000 + Math.random() * 900000);
+    document.getElementById("preview-code").textContent = code;
+  }
+  setInterval(rotatePreviewCode, 30000);
+
+  async function acquireClassroomLocation() {
+    const pill = document.getElementById("location-pill");
+    pill.textContent = "Acquiring GPS location...";
+    try {
+      const coords = await GeoManager.getCurrentCoordinates();
+      document.getElementById("latitude").value = coords.latitude.toFixed(6);
+      document.getElementById("longitude").value = coords.longitude.toFixed(6);
+      pill.innerHTML = `GPS: <strong>Lat: ${coords.latitude.toFixed(4)}, Lng: ${coords.longitude.toFixed(4)}</strong>`;
+      pill.style.color = "#10b981";
+      showNotification("Classroom GPS coordinates acquired!", "success");
+    } catch (err) {
+      pill.textContent = err.message;
+      pill.style.color = "#ef4444";
+      showNotification(err.message, "error");
+    }
+  }
+
+  document.getElementById("start-session-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const lat = parseFloat(document.getElementById("latitude").value);
+    const lng = parseFloat(document.getElementById("longitude").value);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      showNotification("Please capture the classroom GPS location first.", "error");
+      return;
+    }
+
+    const btn = document.getElementById("start-btn");
+    btn.disabled = true;
+    btn.textContent = "Launching session...";
+
+    try {
+      const res = await fetch("/lecturer/sessions/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course_id: parseInt(document.getElementById("course_id").value),
+          duration_minutes: parseInt(document.getElementById("duration_minutes").value),
+          latitude: lat,
+          longitude: lng,
+          radius_meters: parseFloat(document.getElementById("radius_meters").value)
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        showNotification("Attendance session started successfully!", "success");
+        setTimeout(() => {
+          window.location.href = data.redirect_url;
+        }, 800);
+      } else {
+        showNotification(data.detail || "Error starting session.", "error");
+        btn.disabled = false;
+        btn.textContent = "Start Session";
+      }
+    } catch (err) {
+      showNotification("Network error. Please try again.", "error");
+      btn.disabled = false;
+      btn.textContent = "Start Session";
+    }
+  });
+</script>
+{% endblock %}

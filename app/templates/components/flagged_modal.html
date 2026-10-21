@@ -1,0 +1,47 @@
+<!-- Flagged Record Review Modal (Screen 11) -->
+<div class="modal-backdrop" id="review-modal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 style="font-size:1.15rem; font-weight:700; color:#0f172a;">Flagged Record Review</h3>
+      <button onclick="closeReviewModal()" style="background:none; border:none; font-size:1.4rem; cursor:pointer; color:#64748b;">&times;</button>
+    </div>
+    <div class="modal-body" style="font-size:0.9rem;">
+      <div style="display:grid; grid-template-columns: 140px 1fr; gap:12px; margin-bottom:12px;">
+        <span style="color:#64748b;">Student:</span>
+        <strong id="modal-student-name">Usman Ibrahim</strong>
+
+        <span style="color:#64748b;">Matric No:</span>
+        <span id="modal-matric-no">U/2021/028</span>
+
+        <span style="color:#64748b;">Course:</span>
+        <span id="modal-course">CS101 - Introduction to Computer Science</span>
+
+        <span style="color:#64748b;">Date & Time:</span>
+        <span id="modal-datetime">2026-06-26 09:18 AM</span>
+
+        <span style="color:#64748b;">Status:</span>
+        <span id="modal-status" class="badge badge-flagged">Flagged</span>
+
+        <span style="color:#64748b;">Flag / Reason:</span>
+        <span id="modal-reason" style="color:#ef4444; font-weight:600;">Face similarity low (70.1%) and location slightly outside radius (62m)</span>
+
+        <span style="color:#64748b;">Verification Score:</span>
+        <strong id="modal-score">70.1%</strong>
+
+        <span style="color:#64748b;">Distance:</span>
+        <span id="modal-distance">62 meters</span>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex; justify-content:space-between;">
+      <button type="button" class="btn btn-outline" onclick="closeReviewModal()">Cancel</button>
+      <div style="display:flex; gap:10px;">
+        <button type="button" id="modal-reject-btn" class="btn btn-danger" onclick="submitModalDecision('Rejected')">
+          Reject
+        </button>
+        <button type="button" id="modal-approve-btn" class="btn btn-success" onclick="submitModalDecision('Present')">
+          Approve
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

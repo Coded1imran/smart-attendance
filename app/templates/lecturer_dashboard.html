@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Lecturer Dashboard - AttendAI{% endblock %}
+{% block page_title %}Lecturer Dashboard{% endblock %}
+
+{% set active_page = "dashboard" %}
+
+{% block content %}
+<!-- Stats Row (Screen 7) -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon indigo">📚</div>
+    <div>
+      <div class="stat-label">Total Courses</div>
+      <div class="stat-value">{{ total_courses }}</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon green">📡</div>
+    <div>
+      <div class="stat-label">Active Sessions</div>
+      <div class="stat-value">{{ active_sessions_count }}</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon purple">👥</div>
+    <div>
+      <div class="stat-label">Total Students</div>
+      <div class="stat-value">{{ total_students }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Active Sessions Action Bar -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+  <div>
+    <h2 style="font-size:1.15rem; font-weight:700;">Live Sessions & Quick Actions</h2>
+  </div>
+  <div style="display:flex; gap:12px;">
+    <button class="btn btn-outline" onclick="openCreateCourseModal()">+ Create Course</button>
+    <a href="/lecturer/sessions/create" class="btn btn-primary">+ Start Attendance Session</a>
+  </div>
+</div>
+
+{% if active_sessions %}
+<div class="card" style="border-left: 4px solid #10b981; margin-bottom: 24px;">
+  <div class="card-header">
+    <h3 style="font-size:1rem; font-weight:700; color:#047857;">📡 Active Attendance Sessions Now Open</h3>
+  </div>
+  <div style="display:flex; gap:16px; flex-wrap:wrap;">
+    {% for s in active_sessions %}
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px; flex:1; min-width:260px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="font-weight:700; color:#4f46e5;">{{ s.course.code }} - {{ s.course.title }}</div>
+        <div style="font-size:0.8rem; color:#64748b;">Code: <strong>{{ s.rotating_code }}</strong> (Rotates every 30s)</div>
+      </div>
+      <a href="/lecturer/sessions/{{ s.id }}/live" class="btn btn-sm btn-primary">
+        Live Monitor &rarr;
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Recent Attendance (Live) Table (Screen 7) -->
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Recent Attendance (Live)</h2>
+    {% if active_sessions %}
+    <a href="/lecturer/sessions/{{ active_sessions[0].id }}/live" style="font-size:0.85rem; color:#4f46e5; text-decoration:none; font-weight:600;">View Live Monitor</a>
+    {% endif %}
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Course</th>
+          <th>Date & Time</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if recent_records %}
+        {% for r in recent_records %}
+        <tr>
+          <td><strong>{{ r.student.full_name }}</strong></td>
+          <td>{{ r.session.course.code }}</td>
+          <td>{{ r.timestamp.strftime("%Y-%m-%d %I:%M %p") }}</td>
+          <td>
+            <span class="badge {% if r.status == 'Present' %}badge-present{% elif r.status == 'Pending Review' %}badge-pending{% else %}badge-rejected{% endif %}">
+              {{ r.status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+          <td colspan="4" style="text-align:center; padding:32px; color:#94a3b8;">
+            No attendance has been recorded yet. Start an attendance session to begin capturing records.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Create Course Modal -->
+<div class="modal-backdrop" id="course-modal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 style="font-size:1.1rem; font-weight:700;">Create New Course</h3>
+      <button onclick="closeCreateCourseModal()" style="background:none; border:none; font-size:1.4rem; cursor:pointer;">&times;</button>
+    </div>
+    <form id="create-course-form">
+      <div class="modal-body">
+        <div class="form-group" style="text-align:left;">
+          <label class="form-label">Course Code</label>
+          <input type="text" id="new_course_code" class="form-control" placeholder="e.g. CS101" required>
+        </div>
+        <div class="form-group" style="text-align:left;">
+          <label class="form-label">Course Title</label>
+          <input type="text" id="new_course_title" class="form-control" placeholder="e.g. Introduction to Computer Science" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeCreateCourseModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Course</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function openCreateCourseModal() {
+    document.getElementById("course-modal").classList.add("show");
+  }
+  function closeCreateCourseModal() {
+    document.getElementById("course-modal").classList.remove("show");
+  }
+
+  document.getElementById("create-course-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/lecturer/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: document.getElementById("new_course_code").value.trim(),
+          title: document.getElementById("new_course_title").value.trim()
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotification(data.message, "success");
+        closeCreateCourseModal();
+        setTimeout(() => location.reload(), 800);
+      } else {
+        showNotification(data.detail || "Error creating course.", "error");
+      }
+    } catch (err) {
+      showNotification("Network error. Please try again.", "error");
+    }
+  });
+</script>
+{% endblock %}

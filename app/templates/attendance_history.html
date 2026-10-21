@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance History - AttendAI{% endblock %}
+{% block page_title %}Attendance History{% endblock %}
+
+{% set active_page = "history" %}
+
+{% block content %}
+<!-- Filters Row (Screen 10) -->
+<div class="card" style="margin-bottom:24px;">
+  <form method="GET" action="/student/history" style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap;">
+    <div style="flex:1; min-width:200px;">
+      <label class="form-label">Select Course</label>
+      <select name="course_id" class="form-control">
+        <option value="">All Courses</option>
+        {% for c in courses %}
+        <option value="{{ c.id }}" {% if selected_course_id == c.id %}selected{% endif %}>
+          {{ c.code }} - {{ c.title }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="flex:1; min-width:160px;">
+      <label class="form-label">From Date</label>
+      <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+    </div>
+
+    <div style="flex:1; min-width:160px;">
+      <label class="form-label">To Date</label>
+      <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="padding:10px 24px;">
+      Filter
+    </button>
+  </form>
+</div>
+
+<!-- Attendance Records Table (Screen 10) -->
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">History Records</h2>
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Course</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Status</th>
+          <th>Verification Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if records %}
+        {% for r in records %}
+        <tr>
+          <td><strong>{{ r.session.course.code }}</strong> - {{ r.session.course.title }}</td>
+          <td>{{ r.timestamp.strftime("%Y-%m-%d") }}</td>
+          <td>{{ r.timestamp.strftime("%I:%M %p") }}</td>
+          <td>
+            <span class="badge {% if r.status == 'Present' %}badge-present{% elif r.status == 'Pending Review' %}badge-pending{% else %}badge-rejected{% endif %}">
+              {{ r.status }}
+            </span>
+          </td>
+          <td><strong>{{ r.verification_score }}%</strong></td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+          <td colspan="5" style="text-align:center; padding:32px; color:#94a3b8;">
+            No attendance history matches the selected filters.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Attendance Percentage Progress Summary (Screen 10) -->
+<div class="card" style="background:#ffffff; border-radius:14px; padding:24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div>
+      <div style="font-size:0.85rem; color:#64748b; font-weight:600;">Overall Attendance Percentage</div>
+      <div style="font-size:2rem; font-weight:800; color:#4f46e5;">{{ attendance_pct }}%</div>
+    </div>
+    <span class="badge badge-present" style="font-size:0.85rem; padding:6px 12px;">
+      {{ 'Good Standing' if attendance_pct >= 75 else 'Warning: Low Attendance' }}
+    </span>
+  </div>
+
+  <!-- Progress Bar -->
+  <div style="background:#e2e8f0; height:10px; border-radius:9999px; overflow:hidden;">
+    <div style="background:linear-gradient(90deg, #6366f1, #4f46e5); height:100%; width:{{ attendance_pct }}%; border-radius:9999px; transition:width 0.5s ease;"></div>
+  </div>
+</div>
+{% endblock %}

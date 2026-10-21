@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Enrol in Courses - AttendAI{% endblock %}
+{% block page_title %}Enrol in Courses{% endblock %}
+
+{% set active_page = "courses" %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Available University Courses</h2>
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Course Code</th>
+          <th>Course Title</th>
+          <th>Lecturer</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if courses %}
+        {% for c in courses %}
+        <tr>
+          <td><strong style="color:#4f46e5;">{{ c.code }}</strong></td>
+          <td>{{ c.title }}</td>
+          <td>{{ c.lecturer_name }}</td>
+          <td>
+            {% if c.is_enrolled %}
+            <span class="badge badge-present">Enrolled</span>
+            {% else %}
+            <span style="font-size:0.8rem; color:#64748b;">Not Enrolled</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if c.is_enrolled %}
+            <button class="btn btn-sm btn-outline" disabled style="opacity:0.6;">Enrolled</button>
+            {% else %}
+            <button class="btn btn-sm btn-primary" onclick="enrollInCourse({{ c.id }})">
+              + Enrol Now
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+          <td colspan="5" style="text-align:center; padding:32px; color:#94a3b8;">
+            No courses have been created by lecturers yet.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function enrollInCourse(courseId) {
+    try {
+      const res = await fetch("/student/courses/enroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course_id: courseId })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotification(data.message, "success");
+        setTimeout(() => location.reload(), 800);
+      } else {
+        showNotification(data.detail || "Enrollment failed.", "error");
+      }
+    } catch (err) {
+      showNotification("Network error. Please try again.", "error");
+    }
+  }
+</script>
+{% endblock %}
